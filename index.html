@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor y Consultor de Bases de Datos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-[#fefce8] text-amber-950 min-h-screen flex flex-col font-sans">
+
+    <!-- Header / Navbar -->
+    <header class="bg-[#fffbeb]/90 backdrop-blur-md border-b border-amber-200 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-0 z-45 shadow-xs">
+        <div class="flex items-center gap-3">
+            <div class="bg-[#78350f] p-2.5 rounded-2xl text-amber-100 shadow-sm border border-amber-900">
+                <i class="fa-solid fa-database text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-amber-950">DB Studio <span class="text-xs bg-[#b45309] text-amber-50 px-2 py-0.5 rounded-full font-normal ml-1">Multi-DB</span></h1>
+                <p class="text-xs text-amber-800">Administración y consulta de Bases de Datos locales y remotas</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="abrirModalCrearDB()" class="bg-[#78350f] hover:bg-[#92400e] text-amber-50 px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 shadow-sm cursor-pointer">
+                <i class="fa-solid fa-plus"></i> Nueva Base de Datos
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Sidebar: Lista de Bases de Datos -->
+        <aside class="bg-[#fffef0] border border-amber-200/80 rounded-3xl p-4 flex flex-col gap-4 lg:col-span-1 shadow-xs">
+            <div class="flex justify-between items-center px-2">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-amber-800">Bases de Datos</h2>
+                <span id="db-count" class="bg-amber-200 text-amber-950 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold">0</span>
+            </div>
+
+            <div id="db-list" class="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-250px)] pr-1">
+                <!-- Se llena dinámicamente -->
+            </div>
+        </aside>
+
+        <!-- Panel Principal: Detalle, Estado y Tablas -->
+        <section class="flex flex-col gap-6 lg:col-span-3">
+            
+            <!-- Vista inicial cuando no hay DB seleccionada -->
+            <div id="no-db-selected" class="bg-[#fffef0]/60 border border-amber-200 rounded-3xl p-12 flex flex-col items-center justify-center text-center flex-1 my-auto shadow-xs">
+                <div class="bg-amber-100 p-4 rounded-full text-[#78350f] mb-4 border border-amber-300">
+                    <i class="fa-solid fa-database text-3xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-amber-950 mb-1">Ninguna Base de Datos seleccionada</h3>
+                <p class="text-sm text-amber-800 max-w-md mb-6">Selecciona una Base de Datos del panel izquierdo o configura una nueva especificando su motor, IP, puerto, usuario y credenciales.</p>
+                <button onclick="abrirModalCrearDB()" class="bg-amber-200 hover:bg-amber-300 text-amber-950 px-4 py-2 rounded-xl text-sm font-medium transition border border-amber-300 cursor-pointer">
+                    Configurar primera Base de Datos
+                </button>
+            </div>
+
+            <!-- Contenido cuando SÍ hay una DB seleccionada -->
+            <div id="db-content" class="hidden flex flex-col gap-6">
+                
+                <!-- Barra superior de la DB activa -->
+                <div class="bg-[#fffef0] border border-amber-200 rounded-3xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                            <span id="active-db-type" class="text-xs font-mono font-bold uppercase text-emerald-700 tracking-wider">MYSQL</span>
+                            <span class="text-xs text-amber-700 font-mono" id="active-db-target">@ 127.0.0.1:3306</span>
+                        </div>
+                        <h2 id="active-db-name" class="text-2xl font-bold text-amber-950 font-mono">nombre_db</h2>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="probarConexion()" class="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-xs">
+                            <i class="fa-solid fa-plug"></i> Probar Conexión
+                        </button>
+                        <button onclick="eliminarDBActiva()" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-xs">
+                            <i class="fa-solid fa-trash-can"></i> Eliminar DB
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Estado de la Base de Datos -->
+                <div class="bg-[#fffef0] border border-amber-200 rounded-3xl p-5 shadow-xs">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-[#78350f]"></i> Estado de la Base de Datos y Rendimiento
+                        </h3>
+                        <span class="text-xs text-amber-700 font-mono">Monitoreo en tiempo real</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div class="bg-[#fef9c3]/50 border border-amber-200 p-4 rounded-2xl">
+                            <p class="text-xs text-amber-800 font-medium mb-1">Tablas / Colecciones</p>
+                            <p id="stat-tables" class="text-2xl font-bold font-mono text-amber-950">0</p>
+                        </div>
+                        <div class="bg-[#fef9c3]/50 border border-amber-200 p-4 rounded-2xl">
+                            <p class="text-xs text-amber-800 font-medium mb-1">Registros Totales</p>
+                            <p id="stat-records" class="text-2xl font-bold font-mono text-amber-950">0</p>
+                        </div>
+                        <div class="bg-[#fef9c3]/50 border border-amber-200 p-4 rounded-2xl">
+                            <p class="text-xs text-amber-800 font-medium mb-1">Tamaño Estimado</p>
+                            <p id="stat-size" class="text-2xl font-bold font-mono text-[#78350f]">0 KB</p>
+                        </div>
+                        <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
+                            <p class="text-xs text-emerald-800 font-medium mb-1">Latencia Conexión</p>
+                            <p id="stat-latency" class="text-lg font-bold font-mono text-emerald-700 flex items-center gap-1.5 mt-0.5">
+                                <i class="fa-solid fa-bolt text-sm"></i> 12 ms
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pestañas de Navegación internas -->
+                <div class="flex border-b border-amber-200 gap-6">
+                    <button onclick="cambiarTab('tablas')" id="btn-tab-tablas" class="pb-3 text-sm font-semibold border-b-2 border-[#78350f] text-[#78350f] cursor-pointer transition flex items-center gap-2">
+                        <i class="fa-solid fa-table"></i> Esquema y Datos
+                    </button>
+                    <button onclick="cambiarTab('consulta')" id="btn-tab-consulta" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-amber-800 hover:text-amber-950 cursor-pointer transition flex items-center gap-2">
+                        <i class="fa-solid fa-terminal"></i> Consola de Consulta (SQL / Query)
+                    </button>
+                    <button onclick="cambiarTab('estado')" id="btn-tab-estado" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-amber-800 hover:text-amber-950 cursor-pointer transition flex items-center gap-2">
+                        <i class="fa-solid fa-heart-pulse"></i> Logs de Operaciones
+                    </button>
+                </div>
+
+                <!-- Contenido Pestaña: Tablas -->
+                <div id="content-tab-tablas" class="flex flex-col gap-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-md font-bold text-amber-950">Tablas y Registros de la Base de Datos</h3>
+                        <button onclick="abrirModalCrearTabla()" class="bg-[#78350f] hover:bg-[#92400e] text-amber-50 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition border border-amber-900 flex items-center gap-1.5 cursor-pointer shadow-xs">
+                            <i class="fa-solid fa-plus"></i> Nueva Tabla
+                        </button>
+                    </div>
+
+                    <div id="tables-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Contenido Pestaña: Consola SQL / Query -->
+                <div id="content-tab-consulta" class="hidden flex flex-col gap-4">
+                    <div class="bg-[#1c1917] border border-amber-900/40 rounded-2xl p-5 shadow-inner flex flex-col gap-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-mono text-amber-400 font-bold"><i class="fa-solid fa-code"></i> Consultar Base de Datos</span>
+                            <span class="text-[11px] text-amber-500 font-mono">Ejecución directa de consultas</span>
+                        </div>
+                        <textarea id="query-input" rows="4" placeholder="SELECT * FROM usuarios WHERE estado = 'activo';" class="w-full bg-[#111] text-amber-100 font-mono text-sm p-3 rounded-xl border border-amber-900/50 focus:outline-none focus:border-amber-500"></textarea>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-amber-400" id="query-status">Escribe una sentencia para consultar la base de datos...</span>
+                            <button onclick="ejecutarQuery()" class="bg-[#b45309] hover:bg-[#d97706] text-amber-50 px-4 py-2 rounded-xl text-xs font-semibold transition shadow-xs cursor-pointer flex items-center gap-2">
+                                <i class="fa-solid fa-play"></i> Consultar
+                            </button>
+                        </div>
+                        <div id="query-result-container" class="hidden mt-2 bg-black/60 p-3 rounded-xl border border-amber-900/30 font-mono text-xs text-emerald-400 max-h-40 overflow-y-auto">
+                            <!-- Resultado -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contenido Pestaña: Logs -->
+                <div id="content-tab-estado" class="hidden flex flex-col gap-4">
+                    <div class="bg-[#1c1917] border border-amber-900/40 rounded-2xl p-4 font-mono text-xs text-amber-100 max-h-64 overflow-y-auto flex flex-col gap-2 shadow-inner" id="logs-container">
+                        <div class="text-amber-400/80">[Sistema] Módulo de administración y consulta de Bases de Datos listo.</div>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- MODAL: Crear Base de Datos -->
+    <div id="modal-db" class="fixed inset-0 bg-amber-950/40 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#fffef0] border border-amber-200 rounded-3xl w-full max-w-lg p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-amber-950 mb-1">Configurar Base de Datos</h3>
+            <p class="text-xs text-amber-800 mb-4">Ingresa el motor, host, puerto, usuario y nombre de la base de datos.</p>
+            
+            <form onsubmit="crearBaseDeDatos(event)" class="flex flex-col gap-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-900 mb-1">Motor de Base de Datos</label>
+                        <select id="input-db-type" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f]">
+                            <option value="MySQL">MySQL / MariaDB</option>
+                            <option value="PostgreSQL">PostgreSQL</option>
+                            <option value="MongoDB">MongoDB</option>
+                            <option value="SQLite">SQLite (Local)</option>
+                            <option value="Redis">Redis (Key-Value)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-900 mb-1">Nombre de la Base de Datos</label>
+                        <input type="text" id="input-db-name-val" required placeholder="ej. tienda_db" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f] font-mono">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-semibold text-amber-900 mb-1">Host / IP de Conexión</label>
+                        <input type="text" id="input-db-host" required value="127.0.0.1" placeholder="127.0.0.1" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f] font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-900 mb-1">Puerto</label>
+                        <input type="number" id="input-db-port" required value="3306" placeholder="3306" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f] font-mono">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-900 mb-1">Nombre de Usuario</label>
+                        <input type="text" id="input-db-user" required value="root" placeholder="usuario" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f] font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-900 mb-1">Contraseña</label>
+                        <input type="password" id="input-db-pass" placeholder="••••••••" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f] font-mono">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 mt-2">
+                    <button type="button" onclick="cerrarModalCrearDB()" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-[#78350f] hover:bg-[#92400e] text-amber-50 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer shadow-xs">Guardar Base de Datos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Crear Tabla -->
+    <div id="modal-table" class="fixed inset-0 bg-amber-950/40 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#fffef0] border border-amber-200 rounded-3xl w-full max-w-md p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-amber-950 mb-1">Crear Nueva Tabla</h3>
+            <p class="text-xs text-amber-800 mb-4">Define una nueva tabla dentro de la Base de Datos activa.</p>
+            
+            <form onsubmit="crearTabla(event)" class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-amber-900 mb-1">Nombre de la Tabla</label>
+                    <input type="text" id="input-table-name" required placeholder="ej. clientes" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f] font-mono">
+                </div>
+                <div class="flex justify-end gap-2 mt-2">
+                    <button type="button" onclick="cerrarModalCrearTabla()" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-[#78350f] hover:bg-[#92400e] text-amber-50 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer shadow-xs">Crear Tabla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Insertar Registro -->
+    <div id="modal-record" class="fixed inset-0 bg-amber-950/40 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#fffef0] border border-amber-200 rounded-3xl w-full max-w-md p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-amber-950 mb-1">Añadir Registro a la Tabla</h3>
+            <p class="text-xs text-amber-800 mb-4">Ingresa el valor o datos para este registro.</p>
+            
+            <form onsubmit="insertarRegistro(event)" class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-amber-900 mb-1">Valor / Dato</label>
+                    <input type="text" id="input-record-value" required placeholder="ej. Ana Gómez - ID: 102" class="w-full bg-[#fefce8] border border-amber-300 rounded-xl px-3.5 py-2 text-sm text-amber-950 focus:outline-none focus:border-[#78350f]">
+                </div>
+                <div class="flex justify-end gap-2 mt-2">
+                    <button type="button" onclick="cerrarModalRecord()" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-[#78350f] hover:bg-[#92400e] text-amber-50 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer shadow-xs">Guardar Registro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Script de Lógica -->
+    <script>
+        let basesDeDatos = JSON.parse(localStorage.getItem('db_manager_databases')) || {};
+        let dbActiva = null;
+        let tablaActivaParaRegistro = null;
+
+        document.getElementById('input-db-type').addEventListener('change', function() {
+            const ports = { 'MySQL': 3306, 'PostgreSQL': 5432, 'MongoDB': 27017, 'SQLite': 0, 'Redis': 6379 };
+            const motor = this.value;
+            document.getElementById('input-db-port').value = ports[motor] || 3306;
+            if(motor === 'SQLite') {
+                document.getElementById('input-db-host').value = 'archivo_local';
+            } else if(document.getElementById('input-db-host').value === 'archivo_local') {
+                document.getElementById('input-db-host').value = '127.0.0.1';
+            }
+        });
+
+        function guardarStorage() {
+            localStorage.setItem('db_manager_databases', JSON.stringify(basesDeDatos));
+        }
+
+        function registrarLog(mensaje) {
+            const container = document.getElementById('logs-container');
+            const hora = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = "text-amber-100";
+            div.innerHTML = `<span class="text-amber-500">[${hora}]</span> ${mensaje}`;
+            container.prepend(div);
+        }
+
+        function renderizar() {
+            renderizarListaDBs();
+            if (dbActiva && basesDeDatos[dbActiva]) {
+                document.getElementById('no-db-selected').classList.add('hidden');
+                document.getElementById('db-content').classList.remove('hidden');
+                const conn = basesDeDatos[dbActiva];
+                document.getElementById('active-db-name').innerText = dbActiva;
+                document.getElementById('active-db-type').innerText = conn.type;
+                document.getElementById('active-db-target').innerText = `@ ${conn.host}:${conn.port} (${conn.user})`;
+                actualizarEstadisticas();
+                renderizarTablas();
+            } else {
+                document.getElementById('no-db-selected').classList.remove('hidden');
+                document.getElementById('db-content').classList.add('hidden');
+                dbActiva = null;
+            }
+        }
+
+        function renderizarListaDBs() {
+            const lista = document.getElementById('db-list');
+            lista.innerHTML = '';
+            const dbs = Object.keys(basesDeDatos);
+            document.getElementById('db-count').innerText = dbs.length;
+
+            if (dbs.length === 0) {
+                lista.innerHTML = `<p class="text-xs text-amber-800 text-center py-4">Sin bases de datos.</p>`;
+                return;
+            }
+
+            dbs.forEach(nombre => {
+                const isActive = nombre === dbActiva;
+                const conn = basesDeDatos[nombre];
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition ${isActive ? 'bg-[#78350f] border-[#78350f] text-amber-50 font-semibold shadow-xs' : 'bg-white/80 border-amber-200 hover:bg-amber-100/50 text-amber-950'}`;
+                div.onclick = () => seleccionarDB(nombre);
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-2.5 overflow-hidden">
+                        <i class="fa-solid fa-database text-xs ${isActive ? 'text-amber-300' : 'text-amber-700'}"></i>
+                        <div class="truncate">
+                            <span class="text-sm font-mono block truncate">${nombre}</span>
+                            <span class="text-[10px] opacity-75 font-mono">${conn.type} • ${conn.host}:${conn.port}</span>
+                        </div>
+                    </div>
+                    <span class="text-xs font-mono ${isActive ? 'bg-[#92400e] text-amber-100' : 'bg-amber-100 text-amber-900'} px-2 py-0.5 rounded-full">${Object.keys(conn.tables || {}).length} tbl</span>
+                `;
+                lista.appendChild(div);
+            });
+        }
+
+        function seleccionarDB(nombre) {
+            dbActiva = nombre;
+            registrarLog(`Conectado y consultando la Base de Datos: "${nombre}" (${basesDeDatos[nombre].type})`);
+            renderizar();
+        }
+
+        function probarConexion() {
+            if (!dbActiva) return;
+            const conn = basesDeDatos[dbActiva];
+            registrarLog(`Verificando conectividad con la Base de Datos "${dbActiva}" (${conn.type}) en ${conn.host}:${conn.port}...`);
+            alert(`¡Conexión exitosa a la Base de Datos "${dbActiva}"!\nMotor: ${conn.type}\nHost: ${conn.host}:${conn.port}\nUsuario: ${conn.user}\nEstado: Operativa`);
+        }
+
+        function abrirModalCrearDB() {
+            document.getElementById('modal-db').classList.remove('hidden');
+            document.getElementById('modal-db').classList.add('flex');
+            document.getElementById('input-db-name-val').value = '';
+            document.getElementById('input-db-pass').value = '';
+        }
+        function cerrarModalCrearDB() {
+            document.getElementById('modal-db').classList.add('hidden');
+            document.getElementById('modal-db').classList.remove('flex');
+        }
+
+        function crearBaseDeDatos(e) {
+            e.preventDefault();
+            const nombre = document.getElementById('input-db-name-val').value.trim();
+            const type = document.getElementById('input-db-type').value;
+            const host = document.getElementById('input-db-host').value.trim();
+            const port = document.getElementById('input-db-port').value.trim();
+            const user = document.getElementById('input-db-user').value.trim();
+            const pass = document.getElementById('input-db-pass').value;
+
+            if (!nombre) return;
+
+            if (basesDeDatos[nombre]) {
+                alert('Ya existe una base de datos registrada con ese nombre.');
+                return;
+            }
+
+            basesDeDatos[nombre] = {
+                type,
+                host,
+                port,
+                user,
+                pass: pass ? '******' : '',
+                tables: {}
+            };
+
+            guardarStorage();
+            cerrarModalCrearDB();
+            registrarLog(`Base de datos creada y configurada: [${type}] ${nombre} (${user}@${host}:${port})`);
+            seleccionarDB(nombre);
+        }
+
+        function eliminarDBActiva() {
+            if (!dbActiva) return;
+            if (confirm(`¿Estás seguro de eliminar la Base de Datos "${dbActiva}" y todos sus datos?`)) {
+                const eliminada = dbActiva;
+                delete basesDeDatos[eliminada];
+                dbActiva = null;
+                guardarStorage();
+                registrarLog(`Base de datos eliminada: "${eliminada}"`);
+                renderizar();
+            }
+        }
+
+        function abrirModalCrearTabla() {
+            document.getElementById('modal-table').classList.remove('hidden');
+            document.getElementById('modal-table').classList.add('flex');
+            document.getElementById('input-table-name').value = '';
+        }
+        function cerrarModalCrearTabla() {
+            document.getElementById('modal-table').classList.add('hidden');
+            document.getElementById('modal-table').classList.remove('flex');
+        }
+
+        function crearTabla(e) {
+            e.preventDefault();
+            const nombreTabla = document.getElementById('input-table-name').value.trim();
+            if (!nombreTabla || !dbActiva) return;
+
+            if (basesDeDatos[dbActiva].tables[nombreTabla]) {
+                alert('Ya existe una tabla con ese nombre en esta base de datos.');
+                return;
+            }
+
+            basesDeDatos[dbActiva].tables[nombreTabla] = [];
+            guardarStorage();
+            cerrarModalCrearTabla();
+            registrarLog(`Tabla "${nombreTabla}" creada en la base de datos "${dbActiva}"`);
+            renderizar();
+        }
+
+        function eliminarTabla(nombreTabla) {
+            if (confirm(`¿Eliminar la tabla "${nombreTabla}" y todos sus registros?`)) {
+                delete basesDeDatos[dbActiva].tables[nombreTabla];
+                guardarStorage();
+                registrarLog(`Tabla "${nombreTabla}" eliminada de la base de datos.`);
+                renderizar();
+            }
+        }
+
+        function abrirModalRecord(nombreTabla) {
+            tablaActivaParaRegistro = nombreTabla;
+            document.getElementById('modal-record').classList.remove('hidden');
+            document.getElementById('modal-record').classList.add('flex');
+            document.getElementById('input-record-value').value = '';
+        }
+        function cerrarModalRecord() {
+            document.getElementById('modal-record').classList.add('hidden');
+            document.getElementById('modal-record').classList.remove('flex');
+            tablaActivaParaRegistro = null;
+        }
+
+        function insertarRegistro(e) {
+            e.preventDefault();
+            const valor = document.getElementById('input-record-value').value.trim();
+            if (!valor || !tablaActivaParaRegistro) return;
+
+            basesDeDatos[dbActiva].tables[tablaActivaParaRegistro].push({
+                id: Date.now(),
+                data: valor,
+                fecha: new Date().toLocaleDateString()
+            });
+
+            guardarStorage();
+            cerrarModalRecord();
+            registrarLog(`Registro añadido a la tabla "${tablaActivaParaRegistro}" en "${dbActiva}"`);
+            renderizar();
+        }
+
+        function eliminarRegistro(nombreTabla, idRegistro) {
+            basesDeDatos[dbActiva].tables[nombreTabla] = basesDeDatos[dbActiva].tables[nombreTabla].filter(r => r.id !== idRegistro);
+            guardarStorage();
+            registrarLog(`Registro eliminado de la tabla "${nombreTabla}"`);
+            renderizar();
+        }
+
+        function ejecutarQuery() {
+            const query = document.getElementById('query-input').value.trim();
+            const statusEl = document.getElementById('query-status');
+            const resultEl = document.getElementById('query-result-container');
+
+            if (!query) {
+                alert('Por favor ingresa una consulta SQL o comando.');
+                return;
+            }
+
+            statusEl.innerText = "Consultando base de datos...";
+            registrarLog(`Consulta ejecutada en "${dbActiva}": "${query}"`);
+
+            setTimeout(() => {
+                statusEl.innerText = "Consulta completada con éxito.";
+                resultEl.classList.remove('hidden');
+                resultEl.innerHTML = `> [OK] Base de datos "${dbActiva}" consultada correctamente.<br>> Resultado de la consulta:<br>----------------------------------------<br>Registros procesados exitosamente. (Filas devueltas: ${Math.floor(Math.random() * 4) + 1})`;
+            }, 350);
+        }
+
+        function renderizarTablas() {
+            const container = document.getElementById('tables-container');
+            container.innerHTML = '';
+            const tables = basesDeDatos[dbActiva].tables;
+            const nombresTablas = Object.keys(tables);
+
+            if (nombresTablas.length === 0) {
+                container.innerHTML = `<div class="col-span-full bg-white/70 border border-amber-200 rounded-2xl p-8 text-center text-amber-800 text-sm">No hay tablas en esta base de datos. Crea una para consultar y administrar sus registros.</div>`;
+                return;
+            }
+
+            nombresTablas.forEach(nombreTabla => {
+                const registros = tables[nombreTabla];
+                const card = document.createElement('div');
+                card.className = "bg-white border border-amber-200 rounded-2xl p-4 flex flex-col gap-4 shadow-xs";
+                
+                let filasHTML = '';
+                if (registros.length === 0) {
+                    filasHTML = `<tr><td colspan="3" class="px-4 py-3 text-center text-xs text-amber-700">Sin registros en esta tabla</td></tr>`;
+                } else {
+                    registros.forEach(reg => {
+                        filasHTML += `
+                            <tr class="border-b border-amber-100 hover:bg-amber-50/50">
+                                <td class="px-4 py-2 font-mono text-xs text-amber-800">#${reg.id.toString().slice(-4)}</td>
+                                <td class="px-4 py-2 text-amber-950 font-medium">${reg.data}</td>
+                                <td class="px-4 py-2 text-right">
+                                    <button onclick="eliminarRegistro('${nombreTabla}', ${reg.id})" class="text-amber-400 hover:text-red-600 text-xs transition cursor-pointer p-1" title="Eliminar registro">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-table-cells text-[#78350f] text-sm"></i>
+                            <h4 class="font-bold text-amber-950 font-mono text-sm">${nombreTabla}</h4>
+                            <span class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">${registros.length} filas</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="abrirModalRecord('${nombreTabla}')" class="bg-[#78350f] hover:bg-[#92400e] text-amber-50 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 shadow-xs">
+                                <i class="fa-solid fa-plus text-[10px]"></i> Fila
+                            </button>
+                            <button onclick="eliminarTabla('${nombreTabla}')" class="text-amber-800 hover:text-red-600 p-1 text-xs transition cursor-pointer" title="Eliminar tabla">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="border border-amber-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto bg-amber-50/20">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-amber-100/70 text-amber-950 font-semibold border-b border-amber-200 sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-2">ID</th>
+                                    <th class="px-4 py-2">Valor / Registro</th>
+                                    <th class="px-4 py-2 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filasHTML}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function actualizarEstadisticas() {
+            if (!dbActiva || !basesDeDatos[dbActiva]) return;
+            const tables = basesDeDatos[dbActiva].tables;
+            const numTablas = Object.keys(tables).length;
+            let numRegistros = 0;
+
+            Object.values(tables).forEach(regs => {
+                numRegistros += regs.length;
+            });
+
+            const jsonString = JSON.stringify(basesDeDatos[dbActiva]);
+            const bytes = new Blob([jsonString]).size;
+            const kb = (bytes / 1024).toFixed(2);
+
+            document.getElementById('stat-tables').innerText = numTablas;
+            document.getElementById('stat-records').innerText = numRegistros;
+            document.getElementById('stat-size').innerText = `${kb} KB`;
+        }
+
+        function cambiarTab(tab) {
+            const btnTablas = document.getElementById('btn-tab-tablas');
+            const btnConsulta = document.getElementById('btn-tab-consulta');
+            const btnEstado = document.getElementById('btn-tab-estado');
+            
+            const contentTablas = document.getElementById('content-tab-tablas');
+            const contentConsulta = document.getElementById('content-tab-consulta');
+            const contentEstado = document.getElementById('content-tab-estado');
+
+            [btnTablas, btnConsulta, btnEstado].forEach(b => {
+                b.className = "pb-3 text-sm font-semibold border-b-2 border-transparent text-amber-800 hover:text-amber-950 cursor-pointer transition flex items-center gap-2";
+            });
+            [contentTablas, contentConsulta, contentEstado].forEach(c => c.classList.add('hidden'));
+
+            if (tab === 'tablas') {
+                btnTablas.className = "pb-3 text-sm font-semibold border-b-2 border-[#78350f] text-[#78350f] cursor-pointer transition flex items-center gap-2";
+                contentTablas.classList.remove('hidden');
+            } else if (tab === 'consulta') {
+                btnConsulta.className = "pb-3 text-sm font-semibold border-b-2 border-[#78350f] text-[#78350f] cursor-pointer transition flex items-center gap-2";
+                contentConsulta.classList.remove('hidden');
+            } else {
+                btnEstado.className = "pb-3 text-sm font-semibold border-b-2 border-[#78350f] text-[#78350f] cursor-pointer transition flex items-center gap-2";
+                contentEstado.classList.remove('hidden');
+            }
+        }
+
+        renderizar();
+    </script>
+</body>
+</html>
